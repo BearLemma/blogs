@@ -10,12 +10,12 @@ we shall start by generating clients for our CRUD endpoints.
 
 In this series of blog posts, I'll go through the process of
 implementing this functionality and together we will examine some of the aspects of this
-endavor that I found interesting. If nothing else, one big takeaway of the story is that
+endeavor that I found interesting. If nothing else, one big takeaway of the story is that
 code generation sounds scary, but doesn't have to be if done efficiently.
 
 ## Target outline
 
-To ilustrate what is the goal, let's consider a ChiselStrike project with two (heavily simplified) entities:
+To illustrate what is the goal, let's consider a ChiselStrike project with one (heavily simplified) entity:
 
 ```typescript
 // models/blog_post.ts
@@ -45,9 +45,10 @@ export default new RouteMap()
 ```
 
 Note: ChiselStrike provides a convenience static method `crud()` which returns RouteMap
-containing all CRUD enpoints for given entity. For more info see (TODO: ADD LINK TO DOCS).
+containing all CRUD endpoints for given entity. For more info see (TODO: ADD LINK TO DOCS).
 
-When desining a new interface, I usually start from what the usage should look like for an example app and worry about the implementation afterwards. So let's do that using for our example backend.
+When designing a new interface, I usually start from what the usage should look like for an
+example app and worry about the implementation afterwards. So let's do that using for our example backend.
 
 First we will need a way of creating the client object:
 
@@ -76,8 +77,8 @@ const post: BlogPost = await cli.blog.posts.post({
 
 Notice how individual route segments map onto the client fields (`/blog/posts` -> `.blog.
 posts`). But our CRUD paths can contain wildcards to capture variables. For example, to patch
-a specific blog post, you would issue a patch agains `/blog/posts/:id/`. This functionality
-can be implemented by introducing functions into the call chain. Let's ilustrate this
+a specific blog post, you would issue a patch against `/blog/posts/:id/`. This functionality
+can be implemented by introducing functions into the call chain. Let's illustrate this
 by PATCHing our blog post's tags:
 
 ```typescript
@@ -159,15 +160,15 @@ export type BlogPost = {
 }
 ```
 
-That wasn't so bad, was it? Addmitedly, we saved a lot of work by pulling the already parsed
+That wasn't so bad, was it? Admittedly, we saved a lot of work by pulling the already parsed
 types from chiseld backend. In the future, I want to drop that dependency, but it will do
 for now.
 
 ## Client object
 
-Now that we have the types, we can focus on the client itself. To make it work as ilustrated
+Now that we have the types, we can focus on the client itself. To make it work as illustrated
 by our example above, I think we can leverage TS's object types which we can nest together
-and create the required structe. It's simple, it's typed and it will be easy to generate
+and create the required structure. It's simple, it's typed and it will be easy to generate
 compared to a bunch of classes. Let's do it:
 
 ```typescript
@@ -228,7 +229,7 @@ The `makePostOne` function takes `url` and `entityType` parameters. `url` tells 
 is the request going to be sent and we need `entityType` reflection parameter to convert
 our entity to and from JSON. More on that later.
 
-`makePostOne` returns an async arrow function which has a signiture of `(entity: OmitRecursively<Entity, "id">) => Promise<Entity>`. The `entity` parameter needs to be
+`makePostOne` returns an async arrow function which has a signature of `(entity: OmitRecursively<Entity, "id">) => Promise<Entity>`. The `entity` parameter needs to be
 `OmitRecursively<Entity, "id">` because when we are POSTing (creating) a new entity, we
 don't have an ID yet. The database will provide it for us. But all of our Entity types
 contain the `id` field so we need to omit it. We need to do so in a recursive manner because
@@ -242,9 +243,9 @@ complicated. The reason why I can't simply do `JSON.stringify` is that we suppor
 `Date` or `ArrayBuffer` and our CRUD API expects `Date` fields to be unix timestamp and
 `ArrayBuffer` to be base64 encoded etc. To do the conversion, we need a reflection object
 `entityType` describing the type. The function will also do some basic sanity checking
-to make sure that the user hasn't bypassed the TypeSystem and hasn't smuggled some type missmatching values in there.
+to make sure that the user hasn't bypassed the TypeSystem and hasn't smuggled some type mismatching values in there.
 
-We we have the Json-like object in hand, we simply send it down the wire using `sendJson`,
+We have the Json-like object in hand, we simply send it down the wire using `sendJson`,
 check the response for errors (`throwOnError`) and do the inverse of `entityToJson` - `entityFromJson` for analogous reasons which were described earlier.
 
 Now let's use it:
