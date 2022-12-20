@@ -221,8 +221,8 @@ parameter needs to be `OmitRecursively<Entity, "id">` because when we are
 POSTing (creating) a new entity, we don't have an ID yet. The database will
 provide it for us. But all of our Entity types contain the `id` field so we need
 to omit it. We need to do so in a recursive manner because our entities can be
-nested. (An inspiration for the implementation `OmitRecursively` was drawn from
-this SO post)[https://stackoverflow.com/a/54487392/1474847]. The return type
+nested. [An inspiration for the implementation `OmitRecursively` was drawn from
+this SO post](https://stackoverflow.com/a/54487392/1474847). The return type
 doesn't need such a restriction because the function returns the newly created
 entity including the `id` field.
 
