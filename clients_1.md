@@ -1,23 +1,26 @@
-Inspired by the recent success of tRPC and in preparation of a ChiselStrike
-example for Tanstack, we have felt the need to enrich ChiselStrike with an
-ability to generate strongly typed TypeScript client code.
+Are you tired of manually writing client code to communicate with your backend
+API? Well, fear not because ChiselStrike is here to save the day! Inspired by
+the success of tRPC, we've decided to enrich ChiselStrike with the ability to
+generate strongly typed TypeScript client code.
 
-The idea is to analyze user-defined route handlers, extract information about
-what route, query parameters and JSON body go in and what response goes out.
-Then use this information to generate a typed client that can be used to
-communicate with our backend endpoints. Doing this in full generality is going
-to require full-blown type analysis with tsc so as an MVP, we shall start by
-generating clients for our CRUD endpoints.
+But how does it work, you ask? Well, we'll analyze your user-defined route
+handlers, extract information about the routes, query parameters, and JSON
+bodies, and use that information to generate a typed client that can communicate
+with our backend endpoints. While doing this in its full generality will require
+some heavy-duty type analysis with TSC, we'll start by focusing on generating
+clients for our CRUD endpoints as an MVP.
 
-In this series of blog posts, I'll go through the process of implementing this
-functionality and together we will examine some of the aspects of this endeavor
-that I found interesting. If nothing else, one big takeaway of the story is that
-code generation sounds scary, but doesn't have to be if done efficiently.
+In this series of blog posts, I'll walk you through the process of implementing
+this functionality and share some of the interesting aspects of this endeavor
+that I discovered along the way. And even if you're not a code generation
+enthusiast, you'll still take away one important lesson: code generation doesn't
+have to be intimidating if done efficiently. So stay tuned and get ready to say
+goodbye to manual client code writing forever!
 
 ## Target outline
 
-To illustrate what is the goal, let's consider a ChiselStrike project with one
-(heavily simplified) entity:
+To illustrate what is the goal, let's consider a ChiselStrike project with
+a single (heavily simplified) entity:
 
 ```typescript
 // models/blog_post.ts
@@ -30,7 +33,7 @@ export class BlogPost extends ChiselEntity {
 }
 ```
 
-and a routing map exposing CRUD endpoint `BlogPost`:
+And a routing map exposing CRUD endpoint `BlogPost`:
 
 ```typescript
 // routes/index.ts
@@ -39,40 +42,39 @@ export default new RouteMap()
 ```
 
 Note: ChiselStrike provides a convenience static method `crud()` which returns a
-RouteMap containing all CRUD endpoints for given entity. For more info see
-(TODO: ADD LINK TO DOCS).
+RouteMap containing all CRUD endpoints for a given entity. For more info, check
+out our documentation (TODO: ADD LINK).
 
-When designing a new interface, I usually start from what the usage should look
-like for an example app and worry about the implementation afterwards. So let's
-do that using for our example backend.
+When designing a new interface, it's often helpful to start with the desired
+usage for an example app and worry about the implementation afterwards. So let's
+do that for our example backend.
 
-First we will need a way of creating the client object:
+First, we'll need a way to create the client object:
 
 ```typescript
 const client = createChiselClient(serverUrl);
 ```
 
-`createChiselClient` will take a serverUrl of ChiselStrike backend server that
-it will communicate with.
+`createChiselClient` will take the `serverUrl` of the ChiselStrike backend server that the client will communicate with.
 
-Then I would like to use the `client` object to create a first blog post:
+Next, let's say we want to use the client object to create a new blog post:
 
 ```typescript
 const post: BlogPost = await client.blog.posts.post({
     text: "To like or not to like Trains, that is the question!",
-    tags: ["lifeStyle"]
+    tags: ["lifeStyle"],
     publishedAt: new Date(),
     authorName: "I Like Trains",
     karma: 0,
 });
 ```
 
-Notice how individual route segments map onto the client fields (`/blog/posts`
--> `.blog. posts`). But our CRUD paths can contain wildcards to capture
-variables. For example, to PATCH a specific blog post, you would issue a PATCH
-HTTP request against `/blog/posts/:id/`. This functionality can be implemented
-by introducing functions into the call chain. Let's illustrate this by PATCHing
-our blog post's tags:
+Notice how individual route segments map onto the client fields (`/blog/posts` ->
+`.blog.posts`). But our CRUD paths can contain wildcards to capture variables. For
+example, to PATCH a specific blog post, you would issue a PATCH HTTP request
+against `/blog/posts/:id/`. This functionality can be implemented by introducing
+functions into the call chain. Let's illustrate this by PATCHing our blog post's
+tags:
 
 ```typescript
 const updatedPost: BlogPost = await client.blog.posts.id(post.id).patch({
@@ -82,18 +84,18 @@ const updatedPost: BlogPost = await client.blog.posts.id(post.id).patch({
 
 ## Models generation
 
-From those examples, it's apparent that if we want type safety, we will need to
-import the Entity type (`BlogPost`) from somewhere and then use it in our
-client. But that's easy enough. ChiselStrike already knows everything about
-Entities and their fields. That means we can just query the entity information
-from chisel server and then store it hem in a dedicated file `models.ts`.
+In order to provide type safety, we'll need to import the Entity type (`BlogPost`)
+into our client code. But where do we get it from? ChiselStrike already knows
+everything about Entities and their fields, so we can just query the entity
+information from the ChiselStrike server and store it in a dedicated file called
+`models.ts`.
 
-The generated entity types will be slightly different than the original
-ChiselStrike entities because for the client, we don't need anything as complex
-as a class. You may also notice the addition of `id` field which is inherited
-from `ChiselEntity`.
+The generated entity types will be slightly different from the original
+ChiselStrike entities, as we don't need anything as complex as a class for the
+client. You may also notice the addition of an id field, which is inherited from
+ChiselEntity.
 
-Put together, we can use the following code:
+To generate these models, we can use the following code (written in Rust):
 
 ```rust
 fn generate_models(version_def: &VersionDefinition) -> Result<String> {
@@ -132,8 +134,8 @@ fn type_enum_to_code(type_enum: &TypeEnum) -> Result<String> {
 ```
 
 For those of you thinking "Whoooha, that's a Rust code! I haven't signed up for
-that!" don't worry if you don't understand everything. We will write
-surprisingly little amount of Rust to do the generation.
+that!", don't worry if you don't understand everything in this code snippet -
+we'll be writing a surprisingly small amount of Rust to do the generation.
 
 In any case, the above code will generate the following type:
 
@@ -150,16 +152,16 @@ export type BlogPost = {
 ```
 
 That wasn't so bad, was it? Admittedly, we saved a lot of work by pulling the
-already parsed types from chiseld backend. In the future, I want to drop that
-dependency, but it will do for now.
+already parsed types from ChiselStrike backend, but in the future, we hope to
+drop that dependency.
 
 ## Client object
 
-Now that we have the types, we can focus on the client itself. To make it work
-as illustrated by our example above, I think we can leverage TypeScript's object types
-which we can nest together and create the required structure. It's simple, it's
-typed and it will be easy to generate compared to a bunch of classes. Let's do
-it:
+Now that we have our types, it's time to focus on the client object itself. To
+make it work as illustrated in our earlier examples, we can leverage
+TypeScript's object types and nest them to create the required structure. It's
+simple, it's typed, and it will be easy to generate compared to a bunch of
+classes. Here's what it looks like:
 
 ```typescript
 const client = {
@@ -177,15 +179,15 @@ const client = {
 }
 ```
 
-Woooha, that's a lot of code! We haven't implemented any of those functions and
-that's not even all of the CRUD methods! We are still missing `get`, `delete`,
-`put` for both variants, singular(with id) and plain (without `id`). We will
-probably want to have some convenience methods for bulk retrieval like `getIter`
-and `getAll` as well.
+Whoa, that's a lot of code! We haven't even implemented any of those functions
+yet, and that's not even all of the CRUD methods. We're still missing GET,
+DELETE, and PUT for both singular (with an id) and plain (without an id)
+variants. We'll probably also want to have some convenience methods for bulk
+retrieval, like `getIter` and `getAll`.
 
-Even if we are planning on generating the code, it needs more structure. Ok,
-let's start off by focusing on replacing
-`post: (user: Omit<User, "id">) => Promise<User> {...},` with something more
+Even if we're planning on generating the code, it needs more structure. Okay,
+let's start by focusing on replacing
+`post: (user: Omit<User, "id">) => Promise<User> {...}`, with something more
 reasonable.
 
 ## Function generation in TypeScript
@@ -208,21 +210,20 @@ function makePostOne<Entity extends Record<string, unknown>>(
 }
 ```
 
-From the code it's perfectly obvious what that function does, isn't? Ha! Of
-course not! So let's explain what's going on here.
+If you're thinking "What the heck does this code do?", don't worry, I'll explain.
 
-`makePostOne` function takes `url` and `entityType` parameters. `url` tells us
-where the request is going to be sent and we need `entityType` reflection
-parameter to convert our entity to and from JSON. More on that later.
+The `makePostOne` function takes `url` and `entityType` parameters. The `url` tells us
+where the request will be sent, and the `entityType` reflection parameter is used
+to convert our entity to and from JSON. More on that later.
 
-`makePostOne` returns an async arrow function which has a signature of
-`(entity: OmitRecursively<Entity, "id">) => Promise<Entity>`. The `entity`
-parameter needs to be `OmitRecursively<Entity, "id">` because when we are
-POSTing (creating) a new entity, we don't have an ID yet. The database will
-provide it for us. But all of our Entity types contain the `id` field so we need
-to omit it. We need to do so in a recursive manner because our entities can be
-nested. [An inspiration for the implementation `OmitRecursively` was drawn from
-this SO post](https://stackoverflow.com/a/54487392/1474847). The return type
+The `makePostOne` function returns an async arrow function with the signature
+`(entity: OmitRecursively<Entity, "id">) => Promise<Entity>`. The entity
+parameter must be `OmitRecursively<Entity, "id">` because when we're POSTing
+(creating) a new entity, we don't have an ID yet. The database will provide it
+for us. But all of our Entity types contain the `id` field, so we need to omit it.
+We need to do so in a recursive manner because our entities can be nested
+(inspiration for the implementation of `OmitRecursively` was drawn from
+[this SO post](https://stackoverflow.com/a/54487392/1474847)). The return type
 doesn't need such a restriction because the function returns the newly created
 entity including the `id` field.
 
