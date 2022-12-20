@@ -1,6 +1,6 @@
 Inspired by the recent success of tRPC and in preparation of a ChiselStrike
 example for Tanstack, we have felt the need to enrich ChiselStrike with an
-ability to generate heavily typed TS client code.
+ability to generate strongly typed TypeScript client code.
 
 The idea is to analyze user-defined route handlers, extract information about
 what route, query parameters and JSON body go in and what response goes out.
@@ -49,16 +49,16 @@ do that using for our example backend.
 First we will need a way of creating the client object:
 
 ```typescript
-const cli = createChiselClient(serverUrl);
+const client = createChiselClient(serverUrl);
 ```
 
-`createChiselClient` will take a serverUrl of ChiselStrike backend server with
-which it will communicate.
+`createChiselClient` will take a serverUrl of ChiselStrike backend server that
+it will communicate with.
 
 Then I would like to use the `client` object to create a first blog post:
 
 ```typescript
-const post: BlogPost = await cli.blog.posts.post({
+const post: BlogPost = await client.blog.posts.post({
     text: "To like or not to like Trains, that is the question!",
     tags: ["lifeStyle"]
     publishedAt: new Date(),
@@ -69,13 +69,13 @@ const post: BlogPost = await cli.blog.posts.post({
 
 Notice how individual route segments map onto the client fields (`/blog/posts`
 -> `.blog. posts`). But our CRUD paths can contain wildcards to capture
-variables. For example, to patch a specific blog post, you would issue a patch
-against `/blog/posts/:id/`. This functionality can be implemented by introducing
-functions into the call chain. Let's illustrate this by PATCHing our blog post's
-tags:
+variables. For example, to PATCH a specific blog post, you would issue a PATCH
+HTTP request against `/blog/posts/:id/`. This functionality can be implemented
+by introducing functions into the call chain. Let's illustrate this by PATCHing
+our blog post's tags:
 
 ```typescript
-const updatedPost: BlogPost = await cli.blog.posts.id(post.id).patch({
+const updatedPost: BlogPost = await client.blog.posts.id(post.id).patch({
     tags: ["lifeStyle", "philosophy"],
 });
 ```
@@ -156,7 +156,7 @@ dependency, but it will do for now.
 ## Client object
 
 Now that we have the types, we can focus on the client itself. To make it work
-as illustrated by our example above, I think we can leverage TS's object types
+as illustrated by our example above, I think we can leverage TypeScript's object types
 which we can nest together and create the required structure. It's simple, it's
 typed and it will be easy to generate compared to a bunch of classes. Let's do
 it:
@@ -179,7 +179,7 @@ const client = {
 
 Woooha, that's a lot of code! We haven't implemented any of those functions and
 that's not even all of the CRUD methods! We are still missing `get`, `delete`,
-`put` for both variants (singular - with id) and plain (without `id`). We will
+`put` for both variants, singular(with id) and plain (without `id`). We will
 probably want to have some convenience methods for bulk retrieval like `getIter`
 and `getAll` as well.
 
@@ -190,7 +190,7 @@ reasonable.
 
 ## Function generation in TypeScript
 
-How about instead of generating the function in Rust, we wrote a TS function
+How about instead of generating the function in Rust, we wrote a TypeScript function
 that would generate the handler for us? It's very easy to do using arrow
 functions:
 
@@ -291,7 +291,7 @@ const client = {
 
 Awesome! This will save us a lot of generation as we can put the functions
 `makePostOne`, etc. to a `client_lib.ts` library file which would be just a
-regular TS file which can be linted, analyzed or anything that we fancy.
+regular TypeScript file which can be linted, analyzed or anything that we fancy.
 
 ## Client factory
 
