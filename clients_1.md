@@ -22,11 +22,11 @@ To illustrate what is the goal, let's consider a ChiselStrike project with one
 ```typescript
 // models/blog_post.ts
 export class BlogPost extends ChiselEntity {
-  text: string;
-  tags: string[];
-  publishedAt: Date;
-  authorName: string;
-  karma: number;
+    text: string;
+    tags: string[];
+    publishedAt: Date;
+    authorName: string;
+    karma: number;
 }
 ```
 
@@ -35,7 +35,7 @@ and a routing map exposing CRUD endpoint `BlogPost`:
 ```typescript
 // routes/index.ts
 export default new RouteMap()
-  .prefix("/blog/posts", BlogPost.crud());
+    .prefix("/blog/posts", BlogPost.crud());
 ```
 
 Note: ChiselStrike provides a convenience static method `crud()` which returns a
@@ -76,7 +76,7 @@ tags:
 
 ```typescript
 const updatedPost: BlogPost = await cli.blog.posts.id(post.id).patch({
-  tags: ["lifeStyle", "philosophy"],
+    tags: ["lifeStyle", "philosophy"],
 });
 ```
 
@@ -140,12 +140,12 @@ In any case, the above code will generate the following type:
 ```typescript
 // models.ts
 export type BlogPost = {
-  id: string;
-  text: string;
-  tags: string[];
-  publishedAt: Date;
-  authorName: string;
-  karma: number;
+    id: string;
+    text: string;
+    tags: string[];
+    publishedAt: Date;
+    authorName: string;
+    karma: number;
 };
 ```
 
@@ -196,15 +196,15 @@ functions:
 
 ```typescript
 function makePostOne<Entity extends Record<string, unknown>>(
-  url: URL,
-  entityType: reflect.Entity,
+    url: URL,
+    entityType: reflect.Entity,
 ): (entity: OmitRecursively<Entity, "id">) => Promise<Entity> {
-  return async (entity: OmitRecursively<Entity, "id">) => {
-    const entityJson = entityToJson(entityType, entity);
-    const resp = await sendJson(url, "POST", entityJson);
-    await throwOnError(resp);
-    return entityFromJson<Entity>(entityType, await resp.json());
-  };
+    return async (entity: OmitRecursively<Entity, "id">) => {
+        const entityJson = entityToJson(entityType, entity);
+        const resp = await sendJson(url, "POST", entityJson);
+        await throwOnError(resp);
+        return entityFromJson<Entity>(entityType, await resp.json());
+    };
 }
 ```
 
@@ -267,25 +267,25 @@ use them:
 
 ```typescript
 const client = {
-  blog: {
-    posts: {
-      post: makePostOne<BlogPost>(url(`/blog/posts`), reflection.BlogPost),
-      delete: makeDeleteMany<BlogPost>(url(`/blog/posts`)),
-      id: (id: string) => {
-        return {
-          delete: makeDeleteOne(url(`/blog/posts/${id}`)),
-          patch: makePatchOne<BlogPost>(
-            url(`/blog/posts/${id}`),
-            reflection.BlogPost,
-          ),
-          put: makePutOne<BlogPost>(
-            url(`/blog/posts/${id}`),
-            reflection.BlogPost,
-          ),
-        };
-      },
+    blog: {
+        posts: {
+            post: makePostOne<BlogPost>(url(`/blog/posts`), reflection.BlogPost),
+            delete: makeDeleteMany<BlogPost>(url(`/blog/posts`)),
+            id: (id: string) => {
+                return {
+                    delete: makeDeleteOne(url(`/blog/posts/${id}`)),
+                    patch: makePatchOne<BlogPost>(
+                        url(`/blog/posts/${id}`),
+                        reflection.BlogPost,
+                    ),
+                    put: makePutOne<BlogPost>(
+                        url(`/blog/posts/${id}`),
+                        reflection.BlogPost,
+                    ),
+                };
+            },
+        },
     },
-  },
 };
 ```
 
@@ -312,19 +312,125 @@ function createClient(serverUrl: string) {
                 id: (id: string) => {
                     return {
                         delete: makeDeleteOne(url(`/blog/posts/${id}`)),
-                        patch: makePatchOne<BlogPost>(url(`/blog/posts/${id}`), reflection.BlogPost),
-                        put: makePutOne<BlogPost>(url(`/blog/posts/${id}`), reflection.BlogPost),
+                        patch: makePatchOne<BlogPost>(
+                            url(`/blog/posts/${id}`),
+                            reflection.BlogPost,
+                        ),
+                        put: makePutOne<BlogPost>(
+                            url(`/blog/posts/${id}`),
+                            reflection.BlogPost,
+                        ),
                     };
                 },
-            }
-        }
-    }
+            },
+        },
+    };
+}
 ```
 
 Nice! As you can see, the `url` function used in the previous two code samples
 is a simple arrow function that joins given `serverUrl` with relative url of
 given route. We need to pass such url to all `make*` functions so that they know
 where to send their requests.
+
+## Generating the client code
+
+Now that we know what needs to be generated, let's take a look at the code that
+can actually do the generation:
+
+```rust
+fn generate_routing_client(routes: &Vec<RouteInfo>, opts: &Opts) -> Result<String> {
+    let mut output = String::new();
+    let imports = match opts.mode {
+        Mode::Deno => {
+            r#"
+                import * as lib from "./client_lib.ts";
+                import * as models from "./models.ts";
+                import * as reflection from "./reflection.ts";
+            "#
+        }
+        Mode::Node => {
+            r#"
+                import * as lib from "./client_lib";
+                import * as models from "./models";
+                import * as reflection from "./reflection";
+            "#
+        }
+    };
+    writeln!(output, "{}\n", &imports)?;
+    let root = build_routing(routes)?;
+    writeln!(
+        output,
+        r#"
+            function createClient(serverUrl: string) {
+                const url = (url: string) => {
+                  return urlJoin(serverUrl, url);
+                };
+                return {};
+            }}
+        "#,
+        opts.version,
+        generate_routing_obj(&root, "")?
+    )?;
+    Ok(output)
+}
+
+fn generate_routing_obj(route: &SubRoute, url_prefix: &str) -> Result<String> {
+    let mut handlers: Vec<_> = route
+        .handlers
+        .iter()
+        .map(|h| handler_to_ts(h, url_prefix))
+        .collect();
+
+    for (segment, subroute) in &route.children {
+        let handler = match segment {
+            RouteSegment::FixedText(segment) => format!(
+                "\"{segment}\": {}",
+                generate_routing_obj(subroute, &path_join(url_prefix, segment))?
+            ),
+            RouteSegment::Wildcard(segment) => {
+                let group_name = segment.trim_start_matches(':');
+                let url_path = path_join(url_prefix, &format!("${{{group_name}}}"));
+                format!(
+                    "{group_name}: ({group_name}: string) => {{ return {}; }}",
+                    generate_routing_obj(subroute, &url_path)?
+                )
+            }
+        };
+        handlers.push(handler);
+    }
+    Ok(format!("{{{}}}\n", handlers.join(",\n")))
+}
+
+fn handler_to_ts(handler: &RouteHandler, url: &str) -> String {
+    match &handler.kind {
+        CrudHandler::DeleteMany(entity_name) => format!(
+            "delete: lib.makeDeleteMany<models.{entity_name}>(url(`{url}`))"
+        ),
+        CrudHandler::DeleteOne(_) => format!(
+            "delete: lib.makeDeleteOne(url(`{url}`))"
+        ),
+        CrudHandler::GetOne(entity_name) => format!(
+            "get: lib.makeGetOne<models.{entity_name}>(url(`{url}`), reflection.{entity_name})"
+        ),
+        CrudHandler::PatchOne(entity_name) => format!(
+            "patch: lib.makePatchOne<models.{entity_name}>(url(`{url}`), reflection.{entity_name})"
+        ),
+        CrudHandler::PostOne(entity_name) => format!(
+            "post: lib.makePostOne<models.{entity_name}>(url(`{url}`), reflection.{entity_name})"
+        ),
+        CrudHandler::PutOne(entity_name) => format!(
+            "put: lib.makePutOne<models.{entity_name}>(url(`{url}`), reflection.{entity_name})"
+        ),
+    }
+}
+```
+
+You can notice some minor discrepancies from the example client code above.
+Namely I've added the `lib`, `models` and `reflection` imports so that
+everything has its place. You may also notice a code that generates different
+style imports depending on whether user wants the client to be used from Deno or
+Node ecosystem. But apart from that, all pretty straightforward.
 
 ## What's next
 
